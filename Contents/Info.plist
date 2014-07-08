@@ -3,18 +3,12 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleIdentifier</key>
-	<string>com.lockunlock.command</string>
+	<string>com.plexapp.plugins.lockunlock</string>
 	<key>PlexClientPlatforms</key>
-	<string>MacOSX</string>
+	<string>*</string>
 	<key>PlexFrameworkVersion</key>
 	<string>2</string>
 	<key>PlexPluginCodePolicy</key>
 	<string>Elevated</string>
-	<key>PlexPluginMode</key>
-	<string>Daemon</string>
-	<key>PlexPluginConsoleLogging</key>
-	<string>0</string>
-	<key>PlexPluginDevMode</key>
-	<string>0</string>
 </dict>
 </plist>
