@@ -11,11 +11,14 @@ UNLOCK_ICON = 'Unlock.png'
 
 PMS_SECTIONS = "http://localhost:32400/library/sections"
 
-LOCK_COMMAND = "UPDATE metadata_items SET added_at='%s' WHERE library_section_id=%s; DELETE FROM library_sections WHERE id=%s;"
-# % (section['section_created_at'], section['section_id'], section['section_id'])
+LOCK_COMMAND_1 = "UPDATE metadata_items SET added_at=? WHERE library_section_id=?;"
+# section['section_created_at'], section['section_id']
+LOCK_COMMAND_2 = "DELETE FROM library_sections WHERE id=?;"
+# section['section_id'])
 
-UNLOCK_COMMAND = "sqlite3 %s \"UPDATE metadata_items SET added_at='%s' WHERE library_section_id=%s; INSERT OR REPLACE INTO library_sections (id,name,section_type,language,agent,scanner,created_at,updated_at,scanned_at,uuid) VALUES (%s,'%s',%s,'%s','%s','%s','%s','%s','%s','%s');\""
-# % (DatabasePath(), section['section_created_at'], section['section_id'], 
+UNLOCK_COMMAND_1 = "UPDATE metadata_items SET added_at=? WHERE library_section_id=?;"
+# section['section_created_at'], section['section_id'],
+UNLOCK_COMMAND_2 = "INSERT OR REPLACE INTO library_sections (id,name,section_type,language,agent,scanner,created_at,updated_at,scanned_at,uuid) VALUES (?,?,?,?,?,?,?,?,?,?);"
 #    section['section_id'], section['section_name'], section['section_type'], 
 #    section['section_language'], section['section_agent'], section['section_scanner'],
 #    section['section_created_at'], section['section_updated_at'],
@@ -25,7 +28,7 @@ def Start():
 	HTTP.CacheTime = 0
 	ObjectContainer.art = R(ART)
 	DirectoryObject.thumb = R(ICON)
-	ObjectContainer.title = NAME
+	ObjectContainer.title1 = NAME
 
 @handler(PREFIX, NAME, ICON, ART)
 def MainMenu():
@@ -38,9 +41,9 @@ def MainMenu():
 		pass
 	
 	oc = ObjectContainer(no_cache=True)
-	oc.add(DirectoryObject(key=Callback(Lock, task="lock"), title="Lock", thumb=LOCK_ICON))
-	oc.add(InputDirectoryObject(key=Callback(EnterPassword, path="unlock"), title="Unlock", prompt="Enter your password", thumb=UNLOCK_ICON)
-	oc.add(InputDirectoryObject(key=Callback(EnterPassword, path="wizard"), title="Change Settings", prompt="Enter your password", thumb=ICON)
+	oc.add(DirectoryObject(key=Callback(Lock, task="lock"), title="Lock", thumb=R(LOCK_ICON)))
+	oc.add(InputDirectoryObject(key=Callback(EnterPassword, path="unlock"), title="Unlock", prompt="Enter your password", thumb=R(UNLOCK_ICON)))
+	oc.add(InputDirectoryObject(key=Callback(EnterPassword, path="wizard"), title="Change Settings", prompt="Enter your password", thumb=R(ICON)))
 	return oc
 
 ''' Execute the "lock"/"unlock" command '''
@@ -49,19 +52,25 @@ def Lock(task):
 	# Open the database
 	conn = sqlite3.connect(DatabasePath())
 	
-	for section in Dict['sections']:
+	for section_id in Dict['Sections']:
+		s = Dict['Sections'][section_id]
 		# Set up the command to pass to sqlite depending on whether we're locking or unlocking
 		if task == "lock":
-			command = LOCK_COMMAND % (section['section_created_at'], section['section_id'], section['section_id'])
+			#command = LOCK_COMMAND
+			#args = [section['section_created_at'], section['section_id'], section['section_id']]
+			conn.execute(LOCK_COMMAND_1, [s['section_created_at'], s['section_id']])
+			conn.execute(LOCK_COMMAND_2, s['section_id'])
 		elif task == "unlock":
-			command = UNLOCK_COMMAND % (section['section_created_at'], section['section_id'],
-				section['section_id'], section['section_name'], section['section_type'], 
-    			section['section_language'], section['section_agent'], section['section_scanner'],
-    			section['section_created_at'], section['section_updated_at'],
-				section['section_updated_at'], section['section_uuid'])
+			#command = UNLOCK_COMMAND
+			#args = [section['section_created_at'], section['section_id'], section['section_id'], section['section_name'],
+			#	section['section_type'], section['section_language'], section['section_agent'], section['section_scanner'],
+			#	section['section_created_at'], section['section_updated_at'], section['section_updated_at'], section['section_uuid']]
+			conn.execute(UNLOCK_COMMAND_1, [s['section_created_at'],s['section_id']])
+			conn.execute(UNLOCK_COMMAND_2, [s['section_id'],s['section_name'],s['section_type'],s['section_language'],
+				s['section_agent'],s['section_scanner'],s['section_created_at'],s['section_updated_at'],s['section_updated_at'],s['section_uuid']])
 		
 		#execute the given command
-		conn.execute(command)
+		#conn.execute(command, args)
 
 	# Save our changes
 	conn.commit()
@@ -88,9 +97,16 @@ def EnterPassword(query, path):
 def FirstRunWizard():
 	oc = ObjectContainer(title2="Setup")
 	oc.add(DirectoryObject(key=Callback(SectionSelector), title="Select section(s) to lock"))
-	oc.add(InputDirectoryObject(key=Callback(SetPassword), title="Set Password", prompt="Choose your password", thumb=R(ICON))))
-	oc.add(InputDirectoryObject(key=Callback(SetPassword, confirm=True) title="Confirm Password", prompt="Confirm your password", thumb=R(ICON))))
+	oc.add(InputDirectoryObject(key=Callback(SetPassword), title="Set Password", prompt="Choose your password", thumb=R(ICON)))
+	oc.add(InputDirectoryObject(key=Callback(SetPassword, confirm=True), title="Confirm Password", prompt="Confirm your password", thumb=R(ICON)))
+	oc.add(DirectoryObject(key=Callback(FinishWizard), title="Exit Setup"))
 	return oc
+
+''' Set the first_run_complete flag and return to the main menu '''
+@route(PREFIX + '/endwizard')
+def FinishWizard():
+	Dict['first_run_complete'] = True
+	return MainMenu()
 
 ''' Query PMS to present user with list of sections '''
 @route(PREFIX + '/sections')
@@ -111,6 +127,19 @@ def SectionSelector():
 	# parse it for the individual sections
 	for section in pms_data.xpath('//Directory'):
 		section_id = section.get('key')
+		
+		# Convert the string 'type' into the integers used in the DB
+		section_type = section.get('type')
+		if section_type == 'movie': type_int = 1
+		elif section_type == 'show': type_int = 2
+		elif section_type == 'artist' : type_int = 8
+		
+		# Convert the UNIX timestamp into the date format used in the DB
+		created_timestamp = float(section.get('createdAt'))
+		created_at = Datetime.FromTimestamp(created_timestamp).isoformat(' ')
+		updated_timestamp = float(section.get('updatedAt'))
+		updated_at = Datetime.FromTimestamp(updated_timestamp).isoformat(' ')
+		
 		# Present different title & summary depending on if the section is selected
 		if section_id in Dict['Sections']:
 			title 	= "[*] %s" % section.get('title')
@@ -121,18 +150,18 @@ def SectionSelector():
 		oc.add(DirectoryObject(
 			key=Callback(
 				SelectThiSection, 
-				section_id 			= section_id,
+				section_id 		= section_id,
 				section_name 		= section.get('title'),
-				section_type 		= section.get('type'), # does this need to be converted to some specific int value ?
+				section_type 		= type_int,
 				section_language 	= section.get('language'),
 				section_agent 		= section.get('agent'),
 				section_scanner 	= section.get('scanner'),
-				section_created_at 	= section.get('created_at'),
-				section_updated_at 	= section.get('updated_at'),
+				section_created_at 	= created_at,
+				section_updated_at 	= updated_at,
 				section_uuid 		= section.get('uuid')
 			),
 			title 	= title,
-			sumary	= summary,
+			summary	= summary,
 			thumb 	= section.get('thumb')
 			)
 		)
@@ -156,12 +185,15 @@ def SelectThiSection(section_id, section_name, section_type, section_language, s
 		'section_updated_at': section_updated_at,
 		'section_uuid'		: section_uuid
 		}
-		
-	# Force-save the Dict for good measure (shouldn't be necessary)
-	Dict.save()
 	
 	# return a confirmation to the user
 	return ObjectContainer(header=NAME, message="Section \"%s\" has been selected for locking." % section_name)
+
+''' Remove all selected sections from the Dict '''
+@route(PREFIX + '/clear')
+def ClearSelections():
+	Dict['Sections'] = {}
+	return ObjectContainer(header=NAME, message="Stored section data has been purged")
 	
 ''' Take the given password and save it in the Dict '''
 @route(PREFIX + '/setpassword', confirm=bool)
