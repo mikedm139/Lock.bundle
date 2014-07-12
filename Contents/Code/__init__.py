@@ -130,9 +130,10 @@ def SectionSelector():
 		
 		# Convert the string 'type' into the integers used in the DB
 		section_type = section.get('type')
-		if section_type == 'movie': type_int = 1
-		elif section_type == 'show': type_int = 2
-		elif section_type == 'artist' : type_int = 8
+		if section_type == 'movie'	: type_int = 1
+		elif section_type == 'show'	: type_int = 2
+		elif section_type == 'artist'	: type_int = 8
+		elif section_type == 'photo'	: type_int = 13
 		
 		# Convert the UNIX timestamp into the date format used in the DB
 		created_timestamp = float(section.get('createdAt'))
