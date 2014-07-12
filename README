@@ -1,6 +1,5 @@
-1. Make appropriate changes to Lock.command and Unlock.command
-(Instructions: https://forums.plex.tv/index.php/topic/113976-parental-control-channel-for-pms/)
+USE AT YOUR OWN RISK
 
-2. Rename repository folder Lock or duplicate thereof to Lock.bundle
+Based on the work by SassySue https://github.com/SassySue
 
-3. Copy to ~/Library/Application Support/Plex Media Server/Plugins
+Forum topic: https://forums.plex.tv/index.php/topic/113976-parental-control-channel-for-pms/
