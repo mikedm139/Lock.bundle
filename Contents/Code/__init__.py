@@ -13,12 +13,16 @@ PMS_SECTIONS = "http://localhost:32400/library/sections"
 
 LOCK_COMMAND_1 = "UPDATE metadata_items SET added_at=? WHERE library_section_id=?;"
 # section['section_created_at'], section['section_id']
-LOCK_COMMAND_2 = "DELETE FROM library_sections WHERE id=?;"
+LOCK_COMMAND_2 = "UPDATE metadata_items SET metadata_type=20 WHERE library_section_id=?;"
+# section['section_id'] ... NB: metadata_type 20 = undefined and prevents items from showing up in Search
+LOCK_COMMAND_3 = "DELETE FROM library_sections WHERE id=?;"
 # section['section_id'])
 
 UNLOCK_COMMAND_1 = "UPDATE metadata_items SET added_at=? WHERE library_section_id=?;"
-# section['section_created_at'], section['section_id'],
-UNLOCK_COMMAND_2 = "INSERT OR REPLACE INTO library_sections (id,name,section_type,language,agent,scanner,created_at,updated_at,scanned_at,uuid) VALUES (?,?,?,?,?,?,?,?,?,?);"
+# section['section_created_at'], section['section_id']
+UNLOCK_COMMAND_2 = "UPDATE metadata_items SET metadata_type=? WHERE library_section_id=?;"
+# s['section_type'], s['section_id']
+UNLOCK_COMMAND_3 = "INSERT OR REPLACE INTO library_sections (id,name,section_type,language,agent,scanner,created_at,updated_at,scanned_at,uuid) VALUES (?,?,?,?,?,?,?,?,?,?);"
 #    section['section_id'], section['section_name'], section['section_type'], 
 #    section['section_language'], section['section_agent'], section['section_scanner'],
 #    section['section_created_at'], section['section_updated_at'],
@@ -56,21 +60,16 @@ def Lock(task):
 		s = Dict['Sections'][section_id]
 		# Set up the command to pass to sqlite depending on whether we're locking or unlocking
 		if task == "lock":
-			#command = LOCK_COMMAND
-			#args = [section['section_created_at'], section['section_id'], section['section_id']]
 			conn.execute(LOCK_COMMAND_1, [s['section_created_at'], s['section_id']])
 			conn.execute(LOCK_COMMAND_2, s['section_id'])
+			conn.execute(LOCK_COMMAND_3, s['section_id'])
 		elif task == "unlock":
-			#command = UNLOCK_COMMAND
-			#args = [section['section_created_at'], section['section_id'], section['section_id'], section['section_name'],
-			#	section['section_type'], section['section_language'], section['section_agent'], section['section_scanner'],
-			#	section['section_created_at'], section['section_updated_at'], section['section_updated_at'], section['section_uuid']]
+			
 			conn.execute(UNLOCK_COMMAND_1, [s['section_created_at'],s['section_id']])
-			conn.execute(UNLOCK_COMMAND_2, [s['section_id'],s['section_name'],s['section_type'],s['section_language'],
+			conn.execute(UNLOCK_COMMAND_2, [s['section_type'],s['section_id']])
+			conn.execute(UNLOCK_COMMAND_3, [s['section_id'],s['section_name'],s['section_type'],s['section_language'],
 				s['section_agent'],s['section_scanner'],s['section_created_at'],s['section_updated_at'],s['section_updated_at'],s['section_uuid']])
-		
-		#execute the given command
-		#conn.execute(command, args)
+
 
 	# Save our changes
 	conn.commit()
